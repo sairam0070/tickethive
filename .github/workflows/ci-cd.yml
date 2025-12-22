@@ -7,55 +7,117 @@ on:
     branches: [ main ]
 
 jobs:
-  build-and-deploy:
+  # 1️⃣ Build Stage
+  build:
     runs-on: ubuntu-latest
-
     steps:
-    # 1️⃣ Checkout code
-    - name: Checkout repository
-      uses: actions/checkout@v3
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '20'
 
-    # 2️⃣ Set up Node.js
-    - name: Set up Node.js
-      uses: actions/setup-node@v3
-      with:
-        node-version: '20'
+      - name: Install backend dependencies
+        working-directory: ./backend
+        run: npm install
 
-    # 3️⃣ Build backend
-    - name: Install backend dependencies
-      working-directory: ./backend
-      run: npm install
+      - name: Build backend
+        working-directory: ./backend
+        run: npm run build
 
-    - name: Build backend
-      working-directory: ./backend
-      run: npm run build
+      - name: Install frontend dependencies
+        working-directory: ./frontend
+        run: npm install
 
-    # 4️⃣ Build frontend
-    - name: Install frontend dependencies
-      working-directory: ./frontend
-      run: npm install
+      - name: Build frontend
+        working-directory: ./frontend
+        run: npm run build
 
-    - name: Build frontend
-      working-directory: ./frontend
-      run: npm run build
+  # 2️⃣ Test Stage
+  test:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v3
+      - name: Run backend tests
+        working-directory: ./backend
+        run: npm test
+      - name: Run frontend tests
+        working-directory: ./frontend
+        run: npm test
 
-    # 5️⃣ Log in to Docker Hub
-    - name: Log in to Docker Hub
-      uses: docker/login-action@v2
-      with:
-        username: ${{ secrets.DOCKER_USERNAME }}
-        password: ${{ secrets.DOCKER_PASSWORD }}
+  # 3️⃣ Docker Build Stage
+  docker-build:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v3
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Build backend image
+        run: docker build -t ${{ secrets.DOCKER_USERNAME }}/tickethive-backend:latest ./backend
+      - name: Build frontend image
+        run: docker build -t ${{ secrets.DOCKER_USERNAME }}/tickethive-frontend:latest ./frontend
 
-    # 6️⃣ Build Docker images
-    - name: Build backend image
-      run: docker build -t ${{ secrets.DOCKER_USERNAME  }}/tickethive-backend:latest ./backend
+  # 4️⃣ Push Docker Images
+  docker-push:
+    runs-on: ubuntu-latest
+    needs: docker-build
+    steps:
+      - uses: actions/checkout@v3
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Push backend image
+        run: docker push ${{ secrets.DOCKER_USERNAME }}/tickethive-backend:latest
+      - name: Push frontend image
+        run: docker push ${{ secrets.DOCKER_USERNAME }}/tickethive-frontend:latest
 
-    - name: Build frontend image
-      run: docker build -t ${{ secrets.DOCKER_USERNAME }}/tickethive-frontend:latest ./frontend
+  # 5️⃣ Staging Deployment
+  deploy-staging:
+    runs-on: ubuntu-latest
+    needs: docker-push
+    steps:
+      - uses: actions/checkout@v3
+      - name: Deploy to Staging Server
+        uses: appleboy/ssh-action@v0.1.9
+        with:
+          host: ${{ secrets.STAGING_HOST }}
+          username: ${{ secrets.STAGING_USER }}
+          key: ${{ secrets.STAGING_SSH_KEY }}
+          script: |
+            docker pull ${{ secrets.DOCKER_USERNAME }}/tickethive-backend:latest
+            docker pull ${{ secrets.DOCKER_USERNAME }}/tickethive-frontend:latest
+            docker stop tickethive-backend || true
+            docker rm tickethive-backend || true
+            docker run -d --name tickethive-backend -p 5000:5000 ${{ secrets.DOCKER_USERNAME }}/tickethive-backend:latest
+            docker stop tickethive-frontend || true
+            docker rm tickethive-frontend || true
+            docker run -d --name tickethive-frontend -p 3000:80 ${{ secrets.DOCKER_USERNAME }}/tickethive-frontend:latest
 
-    # 7️⃣ Push Docker images
-    - name: Push backend image
-      run: docker push ${{ secrets.DOCKER_USERNAME }}/tickethive-backend:latest
-
-    - name: Push frontend image
-      run: docker push ${{ secrets.DOCKER_USERNAME }}/tickethive-frontend:latest
+  # 6️⃣ Production Deployment
+  deploy-production:
+    runs-on: ubuntu-latest
+    needs: deploy-staging
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v3
+      - name: Deploy to Production Server
+        uses: appleboy/ssh-action@v0.1.9
+        with:
+          host: ${{ secrets.PROD_HOST }}
+          username: ${{ secrets.PROD_USER }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          script: |
+            docker pull ${{ secrets.DOCKER_USERNAME }}/tickethive-backend:latest
+            docker pull ${{ secrets.DOCKER_USERNAME }}/tickethive-frontend:latest
+            docker stop tickethive-backend || true
+            docker rm tickethive-backend || true
+            docker run -d --name tickethive-backend -p 5000:5000 ${{ secrets.DOCKER_USERNAME }}/tickethive-backend:latest
+            docker stop tickethive-frontend || true
+            docker rm tickethive-frontend || true
+            docker run -d --name tickethive-frontend -p 3000:80 ${{ secrets.DOCKER_USERNAME }}/tickethive-frontend:latest
