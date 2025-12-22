@@ -43,19 +43,19 @@ jobs:
     - name: Log in to Docker Hub
       uses: docker/login-action@v2
       with:
-        username: ${{ secrets.sairamsr }}
-        password: ${{ secrets.SaiRam@070707 }}
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
 
     # 6️⃣ Build Docker images
     - name: Build backend image
-      run: docker build -t ${{ secrets.sairamsr }}/tickethive-backend:latest ./backend
+      run: docker build -t ${{ secrets.DOCKER_USERNAME  }}/tickethive-backend:latest ./backend
 
     - name: Build frontend image
-      run: docker build -t ${{ secrets.sairamsr }}/tickethive-frontend:latest ./frontend
+      run: docker build -t ${{ secrets.DOCKER_USERNAME }}/tickethive-frontend:latest ./frontend
 
     # 7️⃣ Push Docker images
     - name: Push backend image
-      run: docker push ${{ secrets.sairamsr }}/tickethive-backend:latest
+      run: docker push ${{ secrets.DOCKER_USERNAME }}/tickethive-backend:latest
 
     - name: Push frontend image
-      run: docker push ${{ secrets.sairamsr }}/tickethive-frontend:latest
+      run: docker push ${{ secrets.DOCKER_USERNAME }}/tickethive-frontend:latest
