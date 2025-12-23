@@ -1,59 +1,92 @@
-import React, { useEffect } from "react";
-import Grid from "../components/Grid";
-import { useSeatStore, Seat, SeatStatus } from "../context/SeatContext";
+import { useEffect } from "react";
 import { socket } from "../api/socket";
-import { bookSeat } from "../api/seatApi";
+import { getSeats, createSeats, holdSeat, bookSeat } from "../api/seatApi";
+import Grid from "../components/Grid";
+import Controls from "../components/Controls";
+import BookBar from "../components/BookBar";
+import { useSeatStore } from "../store/seatStore";
+import type { Seat } from "../store/seatStore";
 
-const Home: React.FC = () => {
-  const seats = useSeatStore((state) => state.seats);
-  const setSeats = useSeatStore((state) => state.setSeats);
+interface SeatUpdate {
+  seatId: string;
+  status: "locked" | "booked";
+}
 
-  // Initialize dummy seats if none
+export default function Home() {
+  const { seats, setSeats, selected, toggleSelect, clearSelection } = useSeatStore();
+
+  // Ensure userId exists
+  const userId = localStorage.getItem("userId") || crypto.randomUUID();
+  useEffect(() => localStorage.setItem("userId", userId), [userId]);
+
+  // Initial fetch
   useEffect(() => {
-    if (!seats.length) {
-      const rows = 5;
-      const cols = 5;
-      const newSeats: Seat[][] = Array.from({ length: rows }, (_, r) =>
-        Array.from({ length: cols }, (_, c) => ({
-          id: `${String.fromCharCode(65 + r)}${c + 1}`,
-          status: "available" as const,
-        }))
+    getSeats()
+      .then(setSeats)
+      .catch((err) => console.error("Failed to fetch seats:", err));
+  }, [setSeats]);
+
+  // Socket updates
+  useEffect(() => {
+    const handler = (update: SeatUpdate) => {
+      setSeats((prev: Seat[]) =>
+        prev.map((s) => (s.seatId === update.seatId ? { ...s, status: update.status } : s))
       );
-      setSeats(newSeats);
-    }
-  }, [seats.length, setSeats]);
-
-  // Socket.IO listener for real-time seat updates
-  useEffect(() => {
- // Home.tsx, socket listener
-socket.on("seat_update", (data: { row: number; col: number; status: SeatStatus }) => {
-  useSeatStore.getState().updateSeat(data.row, data.col, data.status);
-});
-
-
-    return () => {
-      socket.off("seat_update");
     };
-  }, []);
+    socket.on("seat_update", handler);
+    return () => {
+      socket.off("seat_update", handler);
+    };
+  }, [setSeats]);
 
- const handleSeatClick = async (row: number, col: number) => {
-  const seat = seats[row][col];
-  if (seat.status === "available") {
-    try {
-      await  bookSeat(seat.id); // call backend
-    } catch (err) {
-      console.error("Failed to book seat:", err);
+  // Generate grid + create seats in backend
+  const handleGenerate = async (rows: number, cols: number) => {
+    const newSeats: Seat[] = [];
+    for (let r = 0; r < rows; r++) {
+      for (let c = 1; c <= cols; c++) {
+        newSeats.push({ seatId: `${String.fromCharCode(65 + r)}${c}`, status: "available" });
+      }
     }
-  } else if (seat.status === "selected") {
-    useSeatStore.getState().updateSeat(row, col, "available");
-  }
-};
-  const rows = seats.length;
-  const cols = rows ? seats[0].length : 0;
+    setSeats(newSeats);
 
-  if (!rows) return <div>Loading seats...</div>;
+    try {
+      await createSeats(newSeats);
+    } catch (err) {
+      console.error("Failed to create seats in backend:", err);
+    }
+  };
 
-  return <Grid rows={rows} cols={cols} onSeatClick={handleSeatClick} />;
-};
+  // Hold seat
+  const handleSeatClick = async (seat: Seat) => {
+    if (seat.status !== "available") return;
 
-export default Home;
+    try {
+      await holdSeat(seat.seatId, userId);
+      toggleSelect(seat.seatId);
+    } catch (err: any) {
+      console.error("Failed to hold seat:", err.response?.data || err.message);
+      alert(err.response?.data?.message || "Failed to hold seat");
+    }
+  };
+
+  // Book selected seats
+  const handleBook = async () => {
+    for (const id of selected) {
+      try {
+        await bookSeat(id, userId);
+      } catch (err: any) {
+        console.error("Failed to book seat:", err.response?.data || err.message);
+        alert(err.response?.data?.message || "Failed to book seat");
+      }
+    }
+    clearSelection();
+  };
+
+  return (
+    <div className="p-6">
+      <Controls onGenerate={handleGenerate} />
+      <Grid seats={seats} cols={5} userId={userId} onSeatClick={handleSeatClick} />
+      <BookBar selected={selected} onBook={handleBook} />
+    </div>
+  );
+}

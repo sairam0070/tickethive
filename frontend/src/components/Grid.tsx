@@ -1,27 +1,19 @@
-import React from "react";
 import Seat from "./Seat";
-import { useSeatStore } from "../context/SeatContext";
+import { Seat as SeatType } from "../store/seatStore";
 
 interface Props {
-  rows: number;
+  seats: SeatType[];
   cols: number;
-  onSeatClick: (row: number, col: number) => void;
+  userId: string;
+  onSeatClick: (seat: SeatType) => void;
 }
 
-const Grid: React.FC<Props> = ({ rows, cols, onSeatClick }) => {
-  const seats = useSeatStore((state) => state.seats);
-
-  if (!seats.length) return null;
-
+export default function Grid({ seats, cols, userId, onSeatClick }: Props) {
   return (
     <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${cols}, 40px)` }}>
-      {seats.map((rowSeats, rIdx) =>
-        rowSeats.map((seat, cIdx) => (
-          <Seat key={seat.id} seat={seat} onClick={() => onSeatClick(rIdx, cIdx)} />
-        ))
-      )}
+      {seats.map((seat) => (
+        <Seat key={seat.seatId} seat={seat} userId={userId} onClick={() => onSeatClick(seat)} />
+      ))}
     </div>
   );
-};
-
-export default Grid;
+}

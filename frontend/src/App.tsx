@@ -1,9 +1,12 @@
-import React from "react";
+import { useEffect } from "react";
 import Home from "./pages/Home";
 
-const App: React.FC = () => {
-  return <Home />;
-  
-};
+export default function App() {
+  useEffect(() => {
+    if (!localStorage.getItem("userId")) {
+      localStorage.setItem("userId", crypto.randomUUID());
+    }
+  }, []);
 
-export default App;
+  return <Home />;
+}

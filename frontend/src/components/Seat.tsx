@@ -1,27 +1,26 @@
-import React from "react";
-import { Seat as SeatType } from "../context/SeatContext";
+import { Seat as SeatType } from "../store/seatStore";
 
 interface Props {
   seat: SeatType;
+  userId: string;
   onClick: () => void;
 }
 
-const Seat: React.FC<Props> = ({ seat, onClick }) => {
+export default function Seat({ seat, userId, onClick }: Props) {
+  const isMine = seat.holdBy === userId;
   const color =
-    seat.status === "available"
-      ? "bg-green-500"
-      : seat.status === "selected"
+    seat.status === "booked"
+      ? "bg-red-500"
+      : isMine
       ? "bg-amber-400"
-      : seat.status === "locked"
+      : seat.holdBy
       ? "bg-gray-400"
-      : "bg-red-500";
+      : "bg-green-500";
 
   return (
     <div
-      className={`w-10 h-10 m-1 rounded cursor-pointer ${color}`}
-      onClick={seat.status === "locked" || seat.status === "booked" ? undefined : onClick}
+      onClick={!seat.holdBy || isMine ? onClick : undefined}
+      className={`w-10 h-10 rounded cursor-pointer ${color}`}
     />
   );
-};
-
-export default Seat;
+}
