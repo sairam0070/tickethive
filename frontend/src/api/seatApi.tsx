@@ -1,7 +1,7 @@
 import axios from "axios";
 import { Seat } from "../store/seatStore";
 
-const BASE_URL = process.env.REACT_APP_BACKEND_URL || "http://localhost:5000/api";
+const BASE_URL = process.env.REACT_APP_BACKEND_URL || "https://tickethive-backend.onrender.com/api";
 
 export const getSeats = async (): Promise<Seat[]> => {
   const res = await axios.get(`${BASE_URL}/seats`);

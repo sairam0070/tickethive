@@ -7,11 +7,11 @@ export interface ISeat extends Document {
   holdExpiresAt?: Date;
 }
 
-const seatSchema = new Schema<ISeat>({
+const SeatSchema: Schema = new Schema({
   seatId: { type: String, required: true, unique: true },
-  status: { type: String, enum: ["available", "booked"], default: "available" },
+  status: { type: String, default: "available" },
   holdBy: { type: String },
   holdExpiresAt: { type: Date },
 });
 
-export default mongoose.model<ISeat>("Seat", seatSchema);
+export default mongoose.model<ISeat>("Seat", SeatSchema);
