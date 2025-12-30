@@ -54,4 +54,5 @@ jobs:
           if [ "${{ github.ref }}" == "refs/heads/staging" ]; then
             curl --fail http://localhost:5173 || exit 1
           else
-            curl --fail http://your-production-domain.com || exit 1
+            curl --fail https://ticket-hive-ouhw-84crexqgm-sairam0070s-projects.vercel.app/|| exit 1
+          fi
